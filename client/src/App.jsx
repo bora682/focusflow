@@ -1,17 +1,40 @@
 import { useState, useEffect } from "react";
-import { Link, Routes, Route, useNavigate } from "react-router-dom";
+import {
+  Link,
+  Routes,
+  Route,
+  useNavigate,
+  Navigate,
+} from "react-router-dom";
 
 function Home() {
   return <h2>Welcome to FocusFlow</h2>;
 }
 
+function ProtectedRoute({ children }) {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
+
 function Dashboard() {
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [tasks, setTasks] = useState([]);
   const [error, setError] = useState("");
 
   const [projectForm, setProjectForm] = useState({
     name: "",
+    description: "",
+  });
+
+  const [taskForm, setTaskForm] = useState({
+    title: "",
     description: "",
   });
 
@@ -58,6 +81,38 @@ function Dashboard() {
     }
   }
 
+  async function loadTasks(projectId) {
+    try {
+      const token = localStorage.getItem("token");
+
+      const response = await fetch(
+        `http://127.0.0.1:5555/api/projects/${projectId}/tasks?page=1&per_page=10`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.status === 401 || data.msg === "Token has expired") {
+        handleAuthError("Token has expired. Please log in again.");
+        return;
+      }
+
+      if (!response.ok) {
+        setError(data.error || data.msg || "Failed to load tasks");
+        return;
+      }
+
+      setTasks(data.items);
+    } catch (err) {
+      setError("Something went wrong while loading tasks");
+      console.error(err);
+    }
+  }
+
   useEffect(() => {
     loadProjects();
   }, []);
@@ -65,6 +120,14 @@ function Dashboard() {
   function handleProjectChange(event) {
     const { name, value } = event.target;
     setProjectForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  }
+
+  function handleTaskChange(event) {
+    const { name, value } = event.target;
+    setTaskForm((prev) => ({
       ...prev,
       [name]: value,
     }));
@@ -115,6 +178,59 @@ function Dashboard() {
     }
   }
 
+  async function handleCreateTask(event) {
+    event.preventDefault();
+    setError("");
+
+    try {
+      const token = localStorage.getItem("token");
+
+      if (!selectedProject) {
+        setError("Please select a project first.");
+        return;
+      }
+
+      const response = await fetch(
+        `http://127.0.0.1:5555/api/projects/${selectedProject.id}/tasks`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(taskForm),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.status === 401 || data.msg === "Token has expired") {
+        handleAuthError("Token has expired. Please log in again.");
+        return;
+      }
+
+      if (!response.ok) {
+        setError(data.error || data.msg || "Failed to create task");
+        return;
+      }
+
+      await loadTasks(selectedProject.id);
+
+      setTaskForm({
+        title: "",
+        description: "",
+      });
+    } catch (err) {
+      setError("Something went wrong");
+      console.error(err);
+    }
+  }
+
+  async function handleSelectProject(project) {
+    setSelectedProject(project);
+    await loadTasks(project.id);
+  }
+
   return (
     <div>
       <h2>Dashboard</h2>
@@ -156,11 +272,13 @@ function Dashboard() {
         {projects.map((project) => (
           <li
             key={project.id}
+            onClick={() => handleSelectProject(project)}
             style={{
               border: "1px solid #ddd",
               margin: "10px auto",
               padding: "12px",
               maxWidth: "400px",
+              cursor: "pointer",
             }}
           >
             <strong>{project.name}</strong>
@@ -168,6 +286,63 @@ function Dashboard() {
           </li>
         ))}
       </ul>
+
+      {selectedProject && (
+        <div style={{ marginTop: "30px" }}>
+          <h3>Tasks for: {selectedProject.name}</h3>
+
+          <form
+            onSubmit={handleCreateTask}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+              maxWidth: "320px",
+              margin: "20px auto",
+            }}
+          >
+            <input
+              type="text"
+              name="title"
+              placeholder="Task title"
+              value={taskForm.title}
+              onChange={handleTaskChange}
+            />
+
+            <input
+              type="text"
+              name="description"
+              placeholder="Task description"
+              value={taskForm.description}
+              onChange={handleTaskChange}
+            />
+
+            <button type="submit">Create Task</button>
+          </form>
+
+          {tasks.length === 0 ? (
+            <p>No tasks yet for this project.</p>
+          ) : (
+            <ul style={{ listStyle: "none", padding: 0 }}>
+              {tasks.map((task) => (
+                <li
+                  key={task.id}
+                  style={{
+                    border: "1px solid #888",
+                    margin: "10px auto",
+                    padding: "12px",
+                    maxWidth: "400px",
+                  }}
+                >
+                  <strong>{task.title}</strong>
+                  <p>{task.description}</p>
+                  <p>Status: {task.status}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -381,16 +556,21 @@ export default function App() {
         <Link to="/login" style={{ marginRight: "15px" }}>Login</Link>
         <Link to="/signup" style={{ marginRight: "15px" }}>Signup</Link>
         <Link to="/dashboard" style={{ marginRight: "15px" }}>Dashboard</Link>
-        {isLoggedIn && (
-          <button onClick={handleLogout}>Logout</button>
-        )}
+        {isLoggedIn && <button onClick={handleLogout}>Logout</button>}
       </nav>
 
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </div>
   );
