@@ -1,5 +1,6 @@
 from flask import Flask, request
 from flask_migrate import Migrate
+from flask_cors import CORS
 from flask_jwt_extended import (
     JWTManager,
     create_access_token,
@@ -14,6 +15,8 @@ from models import db, bcrypt, User, Project, Task
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+    
+    CORS(app)
 
     db.init_app(app)
     bcrypt.init_app(app)
