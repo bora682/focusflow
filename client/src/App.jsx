@@ -326,6 +326,52 @@ function Dashboard() {
     }
   }
 
+  async function handleUpdateTaskStatus(taskId, newStatus) {
+    setError("");
+
+    try {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        handleAuthError("No token found. Please log in again.");
+        return;
+      }
+
+      const response = await fetch(
+        `http://127.0.0.1:5555/api/tasks/${taskId}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: newStatus }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.status === 401 || data.msg === "Token has expired") {
+        handleAuthError("Token has expired. Please log in again.");
+        return;
+      }
+
+      if (!response.ok) {
+        setError(data.error || data.msg || "Failed to update task status");
+        return;
+      }
+
+      setTasks((prev) =>
+        prev.map((task) =>
+          task.id === taskId ? { ...task, status: data.status } : task
+        )
+      );
+    } catch (err) {
+      setError("Something went wrong while updating the task status");
+      console.error(err);
+    }
+  }
+
   return (
     <div>
       <h2>Dashboard</h2>
@@ -443,6 +489,19 @@ function Dashboard() {
                   <strong>{task.title}</strong>
                   <p>{task.description}</p>
                   <p>Status: {task.status}</p>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleUpdateTaskStatus(
+                        task.id,
+                        task.status === "todo" ? "done" : "todo"
+                      )
+                    }
+                    style={{ marginTop: "10px", marginRight: "10px" }}
+                  >
+                    Mark as {task.status === "todo" ? "Done" : "Todo"}
+                  </button>
 
                   <button
                     type="button"
