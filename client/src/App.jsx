@@ -281,6 +281,51 @@ function Dashboard() {
     }
   }
 
+  async function handleDeleteTask(taskId) {
+    setError("");
+
+    try {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        handleAuthError("No token found. Please log in again.");
+        return;
+      }
+
+      const response = await fetch(
+        `http://127.0.0.1:5555/api/tasks/${taskId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      let data = {};
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
+
+      if (response.status === 401 || data.msg === "Token has expired") {
+        handleAuthError("Token has expired. Please log in again.");
+        return;
+      }
+
+      if (!response.ok) {
+        setError(data.error || data.msg || "Failed to delete task");
+        return;
+      }
+
+      setTasks((prev) => prev.filter((task) => task.id !== taskId));
+    } catch (err) {
+      setError("Something went wrong while deleting the task");
+      console.error(err);
+    }
+  }
+
   return (
     <div>
       <h2>Dashboard</h2>
@@ -398,6 +443,14 @@ function Dashboard() {
                   <strong>{task.title}</strong>
                   <p>{task.description}</p>
                   <p>Status: {task.status}</p>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteTask(task.id)}
+                    style={{ marginTop: "10px" }}
+                  >
+                    Delete Task
+                  </button>
                 </li>
               ))}
             </ul>
