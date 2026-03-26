@@ -231,6 +231,56 @@ function Dashboard() {
     await loadTasks(project.id);
   }
 
+  async function handleDeleteProject(projectId) {
+    setError("");
+
+    try {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        handleAuthError("No token found. Please log in again.");
+        return;
+      }
+
+      const response = await fetch(
+        `http://127.0.0.1:5555/api/projects/${projectId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      let data = {};
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
+
+      if (response.status === 401 || data.msg === "Token has expired") {
+        handleAuthError("Token has expired. Please log in again.");
+        return;
+      }
+
+      if (!response.ok) {
+        setError(data.error || data.msg || "Failed to delete project");
+        return;
+      }
+
+      setProjects((prev) => prev.filter((project) => project.id !== projectId));
+
+      if (selectedProject && selectedProject.id === projectId) {
+        setSelectedProject(null);
+        setTasks([]);
+      }
+    } catch (err) {
+      setError("Something went wrong while deleting the project");
+      console.error(err);
+    }
+  }
+
   return (
     <div>
       <h2>Dashboard</h2>
@@ -272,17 +322,28 @@ function Dashboard() {
         {projects.map((project) => (
           <li
             key={project.id}
-            onClick={() => handleSelectProject(project)}
             style={{
               border: "1px solid #ddd",
               margin: "10px auto",
               padding: "12px",
               maxWidth: "400px",
-              cursor: "pointer",
             }}
           >
-            <strong>{project.name}</strong>
-            <p>{project.description}</p>
+            <div
+              onClick={() => handleSelectProject(project)}
+              style={{ cursor: "pointer" }}
+            >
+              <strong>{project.name}</strong>
+              <p>{project.description}</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleDeleteProject(project.id)}
+              style={{ marginTop: "10px" }}
+            >
+              Delete Project
+            </button>
           </li>
         ))}
       </ul>
