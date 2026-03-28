@@ -63,7 +63,7 @@ npm run dev
 - Users can delete tasks and projects
 
 ## Deployment
-Live link will be added after deployment.
+Live app: https://focusflow-dashboard.netlify.app
 
 ## Author
 Deborah Im
